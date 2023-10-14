@@ -69,6 +69,12 @@ If you haven't installed these libraries, you can do so using:
 pip install pandas matplotlib jupyter
 ```
 
+### Tuning params
+Run the tune script 
+```bash
+python tune.py
+```
+
 ### License
 
 This repository is licensed under the MIT License.

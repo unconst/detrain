@@ -4,7 +4,7 @@ import optuna
 def objective( trial ):
     x = trial.suggest_float('x', -10, 10)
     y = trial.suggest_float('y', -10, 10)
-    max_batches = 500
+    max_batches = 300
     batches_per_eval = 100
     batches_per_join = 100
     num_peers = 4
