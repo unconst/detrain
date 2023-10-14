@@ -26,28 +26,28 @@ python -m pip install torch torchvision pandas rich argparse
 Execute the script from the command line:
 
 ```bash
-python train.py --max_batches=10000 --batches_per_eval=1000 --num_nodes=5 --join_prob=0.1 --batches_per_join=1000
+python train.py --max_batches=10000 --batches_per_eval=1000 --num_peers=5 --join_prob=0.1 --batches_per_join=1000
 ```
 
 ### Command Line Arguments:
 
-1. `--max_batches`: The total number of mini-batches that will be processed during training. Default is `10000`.
+1. `--max_batches`: The total number of mini-batches that will be processed during training. Default is `-1`.
 2. `--batches_per_eval`: Specifies how frequently the models should be evaluated. Default is `1000`.
-3. `--num_nodes`: The number of individual model instances or "nodes" in the ensemble. Default is `5`.
+3. `--num_peers`: The number of individual model instances or "peers" in the ensemble. Default is `5`.
 4. `--join_prob`: The probability that a pair of models will have their parameters averaged. Default is `0.1`.
-5. `--batches_per_join`: Defines the frequency at which the model parameters may be averaged. Default is `1000`.
+5. `--batches_per_join`: Defines the frequency at which the model parameters may be averaged. Default is `100`.
 
 ### Output:
 
 As the models are trained, their performances will be displayed on the console. The script tracks the following metrics:
 
-- **base**: Accuracy of the first model in the ensemble.
-- **max**: Accuracy of the best model in the ensemble.
-- **min**: Accuracy of the worst model in the ensemble.
-- **mean**: Average accuracy of the ensemble.
-- **maxwin**: Difference between the base value and the best model's accuracy.
-- **minwin**: Difference between the base value and the worst model's accuracy.
-- **meanwin**: Difference between the base value and the average accuracy of the ensemble.
+- **base**: Accuracy of the base line model.
+- **max**: Accuracy of the best model in the peer-ensemble.
+- **min**: Accuracy of the worst model in the peer-ensemble.
+- **mean**: Average accuracy of the peer-ensemble.
+- **maxwin**: Difference between the baseline model and the best ensemble model's accuracy.
+- **minwin**: Difference between the baseline model value and the worst ensemble model's accuracy.
+- **meanwin**: Difference between the baseline model value the average accuracy of the peer-ensemble.
 
 Additionally, a CSV file (`history.csv`) is saved which logs all the above metrics for further analysis.
 
@@ -66,16 +66,6 @@ If you haven't installed these libraries, you can do so using:
 ```bash
 pip install pandas matplotlib jupyter
 ```
-
-### Model Architecture:
-
-The neural network used for this task is a simple feed-forward network with two dense layers. The first layer has 128 neurons, and the second layer has 10 neurons corresponding to the 10 classes of the MNIST dataset.
-
-### Notes:
-
-- While this ensemble method provides diversity among the models, it also promotes convergence of their parameters due to the joining mechanism.
-- The infinite_train_loader ensures that the training never runs out of data by cycling through the dataset.
-- The joining mechanism (averaging of parameters) is based on a probability. Therefore, not all pairs of models are joined.
 
 ### License
 

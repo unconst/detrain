@@ -17,6 +17,7 @@
 # Description: This script trains an ensemble of models on the MNIST dataset.
 # The models are trained in parallel and independently, and their parameters are averaged periodically.
 # The script tracks the performance of the ensemble over time, and saves the results to a CSV file.
+import time
 import torch
 import random
 import argparse
@@ -101,8 +102,8 @@ parser = argparse.ArgumentParser(description="Train an ensemble of models on the
 # max_batches: The total number of mini-batches that will be processed during training.
 # This hyperparameter sets an upper limit for the training iterations, controlling the 
 # duration of training and determining when to stop.
-parser.add_argument("--max_batches", type=int, default=10000, 
-                    help="The total number of mini-batches that will be processed during training.")
+parser.add_argument("--max_batches", type=int, default=-1, 
+                    help="The total number of mini-batches that will be processed during training. -1 run forever.")
 
 # batches_per_eval: Specifies how frequently the models should be evaluated.
 # After every 'batches_per_eval' mini-batches processed, the models' performance is 
@@ -111,35 +112,35 @@ parser.add_argument("--max_batches", type=int, default=10000,
 parser.add_argument("--batches_per_eval", type=int, default=1000, 
                     help="Specifies how frequently the models should be evaluated.")
 
-# num_nodes: The number of individual model instances or "nodes" in the ensemble.
+# num_peers: The number of individual model instances or "peers" in the ensemble.
 # Each node is a separate model instance that is trained and potentially averaged 
 # with others. This parameter determines the diversity and size of the ensemble.
-parser.add_argument("--num_nodes", type=int, default=5, 
-                    help="The number of individual model instances or 'nodes' in the ensemble.")
+parser.add_argument("--num_peers", type=int, default=5, 
+                    help="The number of individual model instances or 'peers' in the ensemble.")
 
-# join_prob: The probability that a pair of models (or nodes) will have their parameters 
+# join_prob: The probability that a pair of models (or peers) will have their parameters 
 # averaged (or "joined") during the joining phase. A higher value increases the likelihood 
-# of averaging, promoting parameter convergence across nodes.
+# of averaging, promoting parameter convergence across peers.
 parser.add_argument("--join_prob", type=float, default=0.1, 
                     help="The probability that a pair of models will have their parameters averaged.")
 
 # batches_per_join: Defines the frequency at which the model parameters may be averaged.
 # After every 'batches_per_join' mini-batches, a random check based on 'join_prob' is made 
 # to decide if two models should be joined. It provides a structured interval for potential joining.
-parser.add_argument("--batches_per_join", type=int, default=1000, 
+parser.add_argument("--batches_per_join", type=int, default=100, 
                     help="Defines the frequency at which the model parameters may be averaged.")
 
 # Load args.
 hparams = parser.parse_args()
 
-# Initialize the 'nodes' list. In the context of this training pipeline, each node represents an individual model-optimizer pair.
+# Initialize the 'peers' list. In the context of this training pipeline, each node represents an individual model-optimizer pair.
 # 1. An instance of the 'Net' model, which has been transferred to the specified computing device (either CPU or GPU).
 # 2. An Adam optimizer that is set up to optimize the parameters of the associated 'Net' model with a learning rate of 0.001.
-# The list 'nodes' will have 'num_nodes' such pairs, allowing for parallel and independent training of multiple model instances.
-nodes = []
-for _ in range(hparams.num_nodes):
+# The list 'peers' will have 'num_peers' such pairs, allowing for parallel and independent training of multiple model instances.
+peers = []
+for _ in range(hparams.num_peers):
     model = Net().to(device); optimizer = optim.Adam(model.parameters(), lr=0.001)
-    nodes.append((model, optimizer))
+    peers.append((model, optimizer))
 
 # To track the progress and results.
 # We record the following metrics:
@@ -157,12 +158,12 @@ history_df = pd.DataFrame(columns=['batch', 'n_joins', 'base', 'max', 'min', 'me
 # Training loop, which runs until the maximum number of mini-batches has been processed.
 n_joins = 0
 n_batches = 0
-while n_batches < hparams.max_batches:
+while n_batches < hparams.max_batches or hparams.max_batches == -1:
 
     # Trains each model on their next mini-batch of data.
     # the dataset is infinite, so we can just keep looping over it.
     # each model is trained using its own optimizer and gets a unique mini-batch of data.
-    for model, optimizer in nodes:
+    for model, optimizer in peers:
         images, labels = next(infinite_train_loader)
         optimizer.zero_grad()
         outputs = model(images)
@@ -179,11 +180,11 @@ while n_batches < hparams.max_batches:
     # - use a random probability check to decide if the parameters of the current pair of models should be averaged based on join_prob.
     # - If the conditions are met, the 'join' function is invoked to average the parameters of the two selected models.
     if n_batches % hparams.batches_per_join == 0:
-        pairs = list(itertools.product(range(hparams.num_nodes), repeat=2))
+        pairs = list(itertools.product(range(hparams.num_peers), repeat=2))
         random.shuffle(pairs)
         for i, j in pairs:
             if i != j and random.random() < hparams.join_prob:
-                join(nodes[i][0], nodes[j][0])
+                join(peers[i][0], peers[j][0])
                 n_joins += 1
 
     # Evaluate and log metrics periodically.
@@ -191,7 +192,7 @@ while n_batches < hparams.max_batches:
     # The models are evaluated on a validation set, and the results are logged to a CSV file.
     if n_batches % hparams.batches_per_eval == 0:
         # Eval each model on the validation set.
-        results = [evaluate_model(model, val_loader, nn.CrossEntropyLoss(), device)[0] for model, _ in nodes]
+        results = [evaluate_model(model, val_loader, nn.CrossEntropyLoss(), device)[0] for model, _ in peers]
 
         # Calculate the base value and the max, min, and mean values for the results.
         # The base value is the accuracy of the first model in the ensemble.
@@ -201,7 +202,7 @@ while n_batches < hparams.max_batches:
         base = results[0]
         max_val = max(results[1:])
         min_val = min(results[1:])
-        mean_val = sum(results[1:]) / (hparams.num_nodes - 1)
+        mean_val = sum(results[1:]) / (hparams.num_peers - 1)
         maxwin = max_val - base
         minwin = min_val - base
         meanwin = mean_val - base
@@ -224,5 +225,4 @@ while n_batches < hparams.max_batches:
         ], ignore_index=True)
         output = f"""Batch: {n_batches}, Joins: {n_joins}, Base: [bold blue]{base:.4f}[/], Max: {max_val:.4f}, Min: {min_val:.4f}, Mean: {mean_val:.4f}, MaxWin: [bold {"green" if maxwin > 0 else "red"}]{maxwin:.4f}[/], MeanWin: [bold {"green" if meanwin > 0 else "red"}]{meanwin:.4f}[/], MinWin: [bold {"green" if minwin > 0 else "red"}]{minwin:.4f}[/]"""
         console.print(output)
-        history_df.to_csv('history.csv', index=False)
-
+        history_df.to_csv(f"results/history.csv", index=False)
