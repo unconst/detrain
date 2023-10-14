@@ -1,8 +1,25 @@
+# Copyright © 2023 Yuma Rao
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+# the Software.
+
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+
 # Description: This script trains an ensemble of models on the MNIST dataset.
 # The models are trained in parallel and independently, and their parameters are averaged periodically.
 # The script tracks the performance of the ensemble over time, and saves the results to a CSV file.
 import torch
 import random
+import argparse
 import itertools
 import pandas as pd
 import torch.nn as nn
@@ -78,38 +95,49 @@ def join(modelA: torch.nn.Module, modelB: torch.nn.Module) -> None:
     modelA.load_state_dict(averaged_state_dict)
     modelB.load_state_dict(averaged_state_dict)
 
+# Create an argparse parser
+parser = argparse.ArgumentParser(description="Train an ensemble of models on the MNIST dataset.")
+
 # max_batches: The total number of mini-batches that will be processed during training.
 # This hyperparameter sets an upper limit for the training iterations, controlling the 
 # duration of training and determining when to stop.
-max_batches = 10000
+parser.add_argument("--max_batches", type=int, default=10000, 
+                    help="The total number of mini-batches that will be processed during training.")
 
 # batches_per_eval: Specifies how frequently the models should be evaluated.
 # After every 'batches_per_eval' mini-batches processed, the models' performance is 
 # assessed on a validation set. Lower values lead to more frequent evaluations, but 
 # may increase the computational overhead.
-batches_per_eval = 1000
+parser.add_argument("--batches_per_eval", type=int, default=1000, 
+                    help="Specifies how frequently the models should be evaluated.")
 
 # num_nodes: The number of individual model instances or "nodes" in the ensemble.
 # Each node is a separate model instance that is trained and potentially averaged 
 # with others. This parameter determines the diversity and size of the ensemble.
-num_nodes = 5
+parser.add_argument("--num_nodes", type=int, default=5, 
+                    help="The number of individual model instances or 'nodes' in the ensemble.")
 
 # join_prob: The probability that a pair of models (or nodes) will have their parameters 
 # averaged (or "joined") during the joining phase. A higher value increases the likelihood 
 # of averaging, promoting parameter convergence across nodes.
-join_prob = 0.1  # Probability with which two models are averaged
+parser.add_argument("--join_prob", type=float, default=0.1, 
+                    help="The probability that a pair of models will have their parameters averaged.")
 
 # batches_per_join: Defines the frequency at which the model parameters may be averaged.
 # After every 'batches_per_join' mini-batches, a random check based on 'join_prob' is made 
 # to decide if two models should be joined. It provides a structured interval for potential joining.
-batches_per_join = 1000
+parser.add_argument("--batches_per_join", type=int, default=1000, 
+                    help="Defines the frequency at which the model parameters may be averaged.")
+
+# Load args.
+hparams = parser.parse_args()
 
 # Initialize the 'nodes' list. In the context of this training pipeline, each node represents an individual model-optimizer pair.
 # 1. An instance of the 'Net' model, which has been transferred to the specified computing device (either CPU or GPU).
 # 2. An Adam optimizer that is set up to optimize the parameters of the associated 'Net' model with a learning rate of 0.001.
 # The list 'nodes' will have 'num_nodes' such pairs, allowing for parallel and independent training of multiple model instances.
 nodes = []
-for _ in range(num_nodes):
+for _ in range(hparams.num_nodes):
     model = Net().to(device); optimizer = optim.Adam(model.parameters(), lr=0.001)
     nodes.append((model, optimizer))
 
@@ -129,7 +157,7 @@ history_df = pd.DataFrame(columns=['batch', 'n_joins', 'base', 'max', 'min', 'me
 # Training loop, which runs until the maximum number of mini-batches has been processed.
 n_joins = 0
 n_batches = 0
-while n_batches < max_batches:
+while n_batches < hparams.max_batches:
 
     # Trains each model on their next mini-batch of data.
     # the dataset is infinite, so we can just keep looping over it.
@@ -150,18 +178,18 @@ while n_batches < max_batches:
     # - ensure they are distinct pairs
     # - use a random probability check to decide if the parameters of the current pair of models should be averaged based on join_prob.
     # - If the conditions are met, the 'join' function is invoked to average the parameters of the two selected models.
-    if n_batches % batches_per_join == 0:
-        pairs = list(itertools.product(range(num_nodes), repeat=2))
+    if n_batches % hparams.batches_per_join == 0:
+        pairs = list(itertools.product(range(hparams.num_nodes), repeat=2))
         random.shuffle(pairs)
         for i, j in pairs:
-            if i != j and random.random() < join_prob:
+            if i != j and random.random() < hparams.join_prob:
                 join(nodes[i][0], nodes[j][0])
                 n_joins += 1
 
     # Evaluate and log metrics periodically.
     # The evaluation is performed every 'batches_per_eval' mini-batches.
     # The models are evaluated on a validation set, and the results are logged to a CSV file.
-    if n_batches % batches_per_eval == 0:
+    if n_batches % hparams.batches_per_eval == 0:
         # Eval each model on the validation set.
         results = [evaluate_model(model, val_loader, nn.CrossEntropyLoss(), device)[0] for model, _ in nodes]
 
@@ -173,7 +201,7 @@ while n_batches < max_batches:
         base = results[0]
         max_val = max(results[1:])
         min_val = min(results[1:])
-        mean_val = sum(results[1:]) / (num_nodes - 1)
+        mean_val = sum(results[1:]) / (hparams.num_nodes - 1)
         maxwin = max_val - base
         minwin = min_val - base
         meanwin = mean_val - base
