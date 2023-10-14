@@ -26,7 +26,7 @@ python -m pip install torch torchvision pandas rich argparse
 Execute the script from the command line:
 
 ```bash
-python train.py --max_batches=10000 --batches_per_eval=1000 --num_peers=5 --join_prob=0.1 --batches_per_join=1000
+python train.py --max_batches=10000 --batches_per_eval=1000 --num_peers=5 --join_prob=0.1 --batches_per_join=1000 --lr=0.01 --bs=32
 ```
 
 ### Command Line Arguments:
@@ -36,6 +36,8 @@ python train.py --max_batches=10000 --batches_per_eval=1000 --num_peers=5 --join
 3. `--num_peers`: The number of individual model instances or "peers" in the ensemble. Default is `5`.
 4. `--join_prob`: The probability that a pair of models will have their parameters averaged. Default is `0.1`.
 5. `--batches_per_join`: Defines the frequency at which the model parameters may be averaged. Default is `100`.
+5. `--lr`: Learning rate. Default is `0.01`.
+5. `--bs`: Batchsize for both training and eval. Default is `32`.
 
 ### Output:
 
