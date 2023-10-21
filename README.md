@@ -1,78 +1,57 @@
-## Federated Training on MNIST Dataset
+## Federated GPT2
 
-This script, `train.py`, trains an ensemble of models on the MNIST dataset. The ensemble consists of multiple neural network models trained in parallel and independently. Periodically the models' parameters are averaged via a join operation.
-
-### Dependencies:
-
-- torch
-- torchvision
-- pandas
-- itertools
-- argparse
-- rich
-
-### Setup:
-
-Ensure that you have the required dependencies installed:
+## Install
 
 ```bash
 python -m pip install -r requirements.txt
-or
-python -m pip install torch torchvision pandas rich argparse
 ```
 
-### How to Run:
+## Running
 
-Execute the script from the command line:
-
+First run your miners
 ```bash
-python train.py --max_batches=10000 --batches_per_eval=1000 --num_peers=5 --join_prob=0.1 --batches_per_join=1000 --lr=0.01 --bs=32
+# Miner script.
+#   python src/miner.py
+#
+# Miner wallet name
+#    --wallet.name miners Miner wallet name
+#
+# Miner hotkey must be distinct per miner
+#    --wallet.hotkey M1
+#
+# Select a device (different for each miner), if you dont have a GPU pass 'cpu'  
+#    --device cuda:1  
+#
+# Each miner must have a separate port here (also different for each miner)
+#    --axon.port 8091 
+
+# Run first miner
+python src/miner.py --wallet.name miners --wallet.hotkey M1 --device cuda:1 --axon.port 8091
+
+# Run your second miner
+python src/miner.py --wallet.name miners --wallet.hotkey M2 --device cuda:2 --axon.port 8092 
 ```
 
-### Command Line Arguments:
-
-1. `--max_batches`: The total number of mini-batches that will be processed during training. Default is `-1`.
-2. `--batches_per_eval`: Specifies how frequently the models should be evaluated. Default is `1000`.
-3. `--num_peers`: The number of individual model instances or "peers" in the ensemble. Default is `5`.
-4. `--join_prob`: The probability that a pair of models will have their parameters averaged. Default is `0.1`.
-5. `--batches_per_join`: Defines the frequency at which the model parameters may be averaged. Default is `100`.
-5. `--lr`: Learning rate. Default is `0.01`.
-5. `--bs`: Batchsize for both training and eval. Default is `32`.
-
-### Output:
-
-As the models are trained, their performances will be displayed on the console. The script tracks the following metrics:
-
-- **base**: Accuracy of the base line model.
-- **max**: Accuracy of the best model in the peer-ensemble.
-- **min**: Accuracy of the worst model in the peer-ensemble.
-- **mean**: Average accuracy of the peer-ensemble.
-- **maxwin**: Difference between the baseline model and the best ensemble model's accuracy.
-- **minwin**: Difference between the baseline model value and the worst ensemble model's accuracy.
-- **meanwin**: Difference between the baseline model value the average accuracy of the peer-ensemble.
-
-Additionally, a CSV file (`history.csv`) is saved which logs all the above metrics for further analysis.
-
-## Analyzing the Results: `analysis.ipynb`
-
-After running the `train.py` script, the training metrics of the ensemble are saved in `history.csv`. To visualize and analyze these results, use the provided Jupyter notebook `analysis.ipynb`.
-
-### Dependencies:
-
-- pandas
-- matplotlib
-- jupyter
-
-If you haven't installed these libraries, you can do so using:
-
+Second run your validator/trainer on the same machine.
 ```bash
-pip install pandas matplotlib jupyter
-```
+#
+# Script name:
+#   python src/validator.py
+#
+# The validator wallet name:
+#    --wallet.name validator 
+#
+# The validator hotkey name:
+#    --wallet.hotkey default 
+#
+# The validator device, different that miners:
+#    --device cuda:0 
+#
+# Enter the ports for each of the miners you are running:
+#    --axons 8091 8092 
 
-### Tuning params
-Run the tune script 
-```bash
-python tune.py
+# Run the validator
+python src/validator.py --wallet.name validator --wallet.hotkey default --device cuda:0 --axons 8091 8092
 ```
 
 ### License

@@ -1,4 +1,1 @@
-rich
-torch
-pandas
-torchvision
+bittensor
