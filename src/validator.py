@@ -4,12 +4,13 @@ import asyncio
 import shared
 import argparse
 import bittensor as bt
-from transformers import AdamW
+from transformers import GPT2LMHeadModel, GPT2Config, GPT2Tokenizer, AdamW
 
 # Build config from arguments.
 parser = argparse.ArgumentParser()
 parser.add_argument( '--device', type = str, default='cuda' )
-parser.add_argument( '--ports', type=int, nargs='+', required=False, help="List of port numbers for local axons.")
+parser.add_argument( '--axons', type=int, nargs='+', required=False, help="List of port numbers for local axons.")
+bt.wallet.add_args( parser )
 bt.axon.add_args( parser )
 bt.logging.add_args( parser )
 config = bt.config( parser )
@@ -22,16 +23,14 @@ sq = 512
 n_steps_per_worker = 3
 n_total_steps = 1000
 
-# Build default wallet.
-bt.wallet().create_if_non_existent()
-
-# Build model and optimizer.
+# Build objects.
+wallet = bt.wallet( config = config ).create_if_non_existent()
 model = shared.get_model().to( config.device )
 model.train()
 optimizer = AdamW( model.parameters(), lr=lr )
 
 # Creates axon endpoints from passed ports.
-# Assumes local endpoints. 
+# Assumes local endpoints.
 axons = [ bt.axon( port = port ).info() for port in config.axons ]
 
 # Query miner

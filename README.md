@@ -27,7 +27,7 @@ First run your miners
 #    --device cuda:1  
 #
 # Each miner must have a separate port here (also different for each miner)
-#    --axon.port 8091 
+#    --.port 8091 
 
 # Run first miner
 python src/miner.py --wallet.name miners --wallet.hotkey M1 --device cuda:1 --axon.port 8091
