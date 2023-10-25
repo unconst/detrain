@@ -1,5 +1,9 @@
 ## Federated GPT2
 
+Miners accept requests from the validator containing a model state dict and return a gradient over that model with respect to a dataset. The gradients are aggregated on the validator and applied to the model. We use a GPT2 model architecture and the Falcon Refined Web dataset. The optimizer exists only on the validator side. Miner are free to compute gradients in any manner. 
+
+TODO: introduce a ranking method. 
+
 ## Install
 
 ```bash
